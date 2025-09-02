@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Variables personnalisables
-DB_NAME="phb_db"
-DB_USER="phb_user"
+DB_NAME="glpi_db"
+DB_USER="glpi_user"
 DB_PASSWORD="P@$$w0rd"
 GLPI_VERSION="10.0.18"
-DOMAIN_NAME="glpi.phb.com"
+DOMAIN_NAME="glpi.example.com"
 
 # Fonction pour afficher les messages de débogage
 function debug_message {
