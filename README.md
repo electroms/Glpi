@@ -63,3 +63,11 @@
 ---
 
 **Remarque :** Après l'ouverture de GLPI et l'affichage du tableau de bord, la suppression du fichier `install.php` est obligatoire pour sécuriser votre installation.
+
+**L’agent GLPI 1.7 est disponible.**
+
+**Nous vous encourageons à mettre à jour vos agents GLPI ou à migrer vos agents si vous utilisez encore des agents FusionInventory.**
+
+**Vous pouvez le télécharger depuis la page officielle du projet sur github :**
+
+- https://github.com/glpi-project/glpi-agent/releases/tag/1.7
