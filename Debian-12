@@ -1,4 +1,5 @@
 #!/bin/bash
+# Auteur Pierre-Henry Barge
 
 # Variables personnalisables
 DB_NAME="glpi_db"
