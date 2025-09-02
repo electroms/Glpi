@@ -1,0 +1,179 @@
+#!/bin/bash
+
+# Variables personnalisables
+DB_NAME="phb_db"
+DB_USER="phb_user"
+DB_PASSWORD="P@$$w0rd"
+GLPI_VERSION="10.0.18"
+DOMAIN_NAME="glpi.phb.com"
+
+# Fonction pour afficher les messages de débogage
+function debug_message {
+    echo "Debug: $1"
+}
+
+# Mise à jour du système
+debug_message "Mise à jour du système"
+apt update && apt upgrade -y
+
+# Installation des paquets nécessaires
+debug_message "Installation des paquets nécessaires"
+apt install -y apache2 php mariadb-server wget unzip
+apt install -y php-xml php-common php-json php-mysql php-mbstring php-curl php-gd php-intl php-zip php-bz2 php-imap php-apcu php-ldap php-fpm
+
+# Démarrage et activation des services
+debug_message "Démarrage et activation des services"
+systemctl start apache2
+systemctl enable apache2
+systemctl start mariadb
+systemctl enable mariadb
+
+# Sécurisation de l'installation de MariaDB
+debug_message "Sécurisation de l'installation de MariaDB"
+mysql_secure_installation
+
+# Configuration de MariaDB
+debug_message "Configuration de MariaDB"
+mysql -u root -p <<EOF
+CREATE DATABASE $DB_NAME;
+GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
+FLUSH PRIVILEGES;
+EXIT;
+EOF
+
+# Téléchargement de GLPI
+debug_message "Téléchargement de GLPI"
+cd /tmp
+wget https://github.com/glpi-project/glpi/releases/download/$GLPI_VERSION/glpi-$GLPI_VERSION.tgz
+
+# Extraction de GLPI
+debug_message "Extraction de GLPI"
+tar -xzvf glpi-$GLPI_VERSION.tgz -C /var/www/
+
+# Configuration des permissions
+debug_message "Configuration des permissions"
+chown www-data:www-data /var/www/glpi/ -R
+mkdir /etc/glpi
+chown www-data:www-data /etc/glpi/
+mv /var/www/glpi/config /etc/glpi
+mkdir /var/lib/glpi
+chown www-data:www-data /var/lib/glpi/
+mv /var/www/glpi/files /var/lib/glpi
+mkdir /var/log/glpi
+chown www-data:www-data /var/log/glpi/
+
+# Configuration de GLPI
+debug_message "Configuration de GLPI"
+cat <<EOF > /var/www/glpi/inc/downstream.php
+<?php
+define("GLPI_CONFIG_DIR", "/etc/glpi/");
+if (file_exists(GLPI_CONFIG_DIR . "/local_define.php")) {
+    require_once GLPI_CONFIG_DIR . "/local_define.php";
+}
+EOF
+
+cat <<EOF > /etc/glpi/local_define.php
+<?php
+define("GLPI_VAR_DIR", "/var/lib/glpi/files");
+define("GLPI_LOG_DIR", "/var/log/glpi");
+EOF
+
+# Configuration d'Apache2 pour GLPI
+debug_message "Configuration d'Apache2 pour GLPI"
+cat <<EOF > /etc/apache2/sites-available/$DOMAIN_NAME.conf
+<VirtualHost *:80>
+    ServerName $DOMAIN_NAME
+    DocumentRoot /var/www/glpi/public
+    <Directory /var/www/glpi/public>
+        Require all granted
+        RewriteEngine On
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteRule ^(.*)$ index.php [QSA,L]
+    </Directory>
+</VirtualHost>
+EOF
+
+# Activation du site GLPI et des modules nécessaires
+debug_message "Activation du site GLPI et des modules nécessaires"
+if [ -x /usr/sbin/a2ensite ]; then
+    /usr/sbin/a2ensite $DOMAIN_NAME.conf
+else
+    echo "a2ensite command not found"
+fi
+
+if [ -x /usr/sbin/a2dissite ]; then
+    /usr/sbin/a2dissite 000-default.conf
+else
+    echo "a2dissite command not found"
+fi
+
+if [ -x /usr/sbin/a2enmod ]; then
+    /usr/sbin/a2enmod rewrite
+else
+    echo "a2enmod command not found"
+fi
+
+systemctl restart apache2
+
+# Installation de PHP8.4-FPM
+debug_message "Installation de PHP8.4-FPM"
+apt-get install -y php8.4-fpm
+if [ -x /usr/sbin/a2enmod ]; then
+    /usr/sbin/a2enmod proxy_fcgi setenvif
+else
+    echo "a2enmod command not found"
+fi
+
+if [ -x /usr/sbin/a2enconf ]; then
+    /usr/sbin/a2enconf php8.4-fpm
+else
+    echo "a2enconf command not found"
+fi
+
+systemctl reload apache2
+
+# Configuration de PHP-FPM
+debug_message "Configuration de PHP-FPM"
+if grep -q '^;session.cookie_httponly' /etc/php/8.4/fpm/php.ini; then
+    sed -i 's/^;session.cookie_httponly =.*/session.cookie_httponly = on/' /etc/php/8.4/fpm/php.ini
+else
+    echo 'session.cookie_httponly = on' >> /etc/php/8.4/fpm/php.ini
+fi
+
+systemctl restart php8.4-fpm.service
+
+# Modification du VirtualHost pour utiliser PHP-FPM
+debug_message "Modification du VirtualHost pour utiliser PHP-FPM"
+cat <<EOF >> /etc/apache2/sites-available/$DOMAIN_NAME.conf
+<FilesMatch \.php$>
+    SetHandler "proxy:unix:/run/php/php8.4-fpm.sock|fcgi://localhost/"
+</FilesMatch>
+EOF
+
+apt-get update
+apt-get -y install lsb-release ca-certificates curl apt-transport-https
+curl -sSLo /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb
+dpkg -i /tmp/debsuryorg-archive-keyring.deb
+sh -c 'echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list'
+apt-get update
+
+apt install php8.4-cli
+
+apt install php8.4-cli libapache2-mod-php8.4
+
+apt install php8.4-cli php8.4-fpm
+
+systemctl restart apache2
+
+debug_message "Installation et configuration de GLPI terminées"
+echo "Installation et configuration de GLPI terminées. Accédez à GLPI via l'adresse IP de votre serveur."
+
+apt install php8.4-gd
+apt install php8.4-common php8.4-{bcmath,bz2,curl,gd,gmp,intl,mbstring,opcache,readline,xml,zip}
+apt install php8.4-xdebug
+
+a2enconf php8.4-fpm
+a2dismod php8.3 # Change to the current PHP version
+a2enmod  php8.4
+
+sudo systemctl status php8.4-fpm
