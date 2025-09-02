@@ -1,0 +1,33 @@
+PRE-REQUIS
+
+Vous devez installer une VM sous Debian
+Vous devez installer "ssh" dans cet VM Debian : pour cela taper : su -
+								~# apt update && apt upgrade
+									~# apt install ssh
+										~# apt update && apt upgrade
+
+Connectez vous sur cet VM en "ssh" à partir de votre machine physique, cela permettra de faire des copier/coller si besoin
+
+Procédures :
+
+Connectez vous à votre VM en "ssh", taper : ssh login@addresseip
+
+Dans votre terminal en "ssh" vous devez être en privilège "~#" , taper: su -
+
+Créer un fichier avec l'extension ".sh", taper : nano nomdudocument.sh
+Copier tout le contenu du document "rootscriptglpi - update" et coller le dans le fichier "nano" en effectuant un "clic droit"
+Personnalisez les 5 variables qui se trouve tout en haut du fichier selon vos préférences
+Enregistrer avec les touches : ctrl X
+
+Vérifier que le fichier existe avec "ls"
+
+Rendez ce fichier éxecutable, taper : chmod +x nomdudocument.sh
+Executer le document : ./nomdudocument.sh
+
+Suivez ce que le script vous demandera
+
+A la fin de l'installation vérifier en tapant l'adresse ip de votre VM dans un navigateur web, la page de GLPI doit s'afficher
+
+Continuer l'installation de GLPI avec cette interface web
+
+Après l'ouverture de glpi et l'affichage du tableau de bord, vous devrez supprimer le fichier "install/install.php, pour ce faire retourner dans votre terminal en "ssh" et taper : rm /var/www/glpi/install/install.php
